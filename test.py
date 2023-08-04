@@ -1,2 +1,3 @@
-print("Hello World!")
-a = 10
+print("Hello World")
+a = 20
+

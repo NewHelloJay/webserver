@@ -14,7 +14,7 @@ using namespace std;
 int http_conn::m_epollfd = -1;
 int http_conn::m_user_count = 0;
 
-const char* doc_root = "/home/jay/web_server/resources";
+const char* doc_root = "./resources";
 
 const char* ok_200_title = "OK";
 const char* error_400_title = "Bad Request";
@@ -116,6 +116,7 @@ void http_conn::init(){
     m_linger = false;
     m_content_length = 0;
     m_file_address = nullptr;
+    m_file_type = HTML;
     bzero(m_read_buff, READ_BUFFER_SIZE);
     bzero(m_write_buff, WRITE_BUFFER_SIZE);
     bzero(m_real_file, FILENAME_LEN);
@@ -177,11 +178,11 @@ bool http_conn::write(){
             unmap();
             return false;
         }
-        bytes_to_send -= temp;
         bytes_have_send += temp;
         if(bytes_to_send <= bytes_have_send){
             // 发送http响应成功，根据http中的Connection字段决定是否立刻断开连接
             unmap();
+            // std::cout << "HTTP REPONSE SUCCESS" << std::endl;
             if(m_linger){
                 init();
                 modfd(m_epollfd, m_sockfd, EPOLLIN);
@@ -293,16 +294,44 @@ HTTP_CODE http_conn::parse_request_line(char* text){
     if(!m_url || m_url[0] != '/'){
         return BAD_REQUEST;
     }
+    // std::cout  << m_url << std::endl;
+
+    // 解析请求文件类型
+    string tempStr(m_url);
+    cout << tempStr << endl;
+    m_file_type = ret_file_type(tempStr);
+    cout << m_file_type << endl;
+
     // 主状态机状态改变
     m_check_state = CHECK_STATE_HEADER;
     return NO_REQUEST;
+}
+
+FILE_TYPE http_conn::ret_file_type(string str){
+    int nIndex = str.find(".");
+    while(nIndex != str.npos){
+        str = str.substr(nIndex + 1, str.length() - nIndex);
+        nIndex = str.find(".");
+        cout << str << endl;
+    }
+    if(str == "html"){
+        return HTML;
+    }
+    else if(str == "css"){
+        return CSS;
+    }
+    else if(str == "js"){
+        return JSON;
+    }
+
+    return HTML;
 }
 
 HTTP_CODE http_conn::parse_headers(char* text){
     // 遇到空行，表示头部字段解析完毕
     if(text[0] == '\0'){
         // 如果http请求有消息体，则还需要读取m_content_length字节的消息体
-        cout << "解析主体长度：" << m_content_length << endl;
+        // cout << "解析主体长度：" << m_content_length << endl;
         if(m_content_length != 0){
             // 主状态机状态改变
             m_check_state = CHECK_STATE_CONTENT;
@@ -340,7 +369,7 @@ HTTP_CODE http_conn::parse_headers(char* text){
 }
 
 HTTP_CODE http_conn::parse_content(char* text){
-    cout << "开始解析body" << endl;
+    // cout << "开始解析body" << endl;
     m_body = text;
     parse_post();
     return GET_REQUEST;
@@ -628,6 +657,16 @@ bool http_conn::add_headers(int content_len){
 }
 
 bool http_conn::add_content_type(){
+    switch(m_file_type){
+        case HTML:
+            return add_response("Content-Type: %s\r\n", "text/html");
+        case CSS:
+            return add_response("Content-Type: %s\r\n", "text/css");
+        case JSON:
+            return add_response("Content-Type: %s\r\n", "application/json");
+        default:
+            return add_response("Content-Type: %s\r\n", "text/html");
+    }
     return add_response("Content-Type: %s\r\n", "text/html");
 }
 

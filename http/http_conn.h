@@ -40,6 +40,12 @@ enum HTTP_CODE{
     CLOSED_CONNECTION  // 表示客户端以及关闭连接了
 };
 
+enum FILE_TYPE{
+    HTML,
+    JSON,
+    CSS
+};
+
 class http_conn{
 public:
     http_conn();
@@ -79,6 +85,7 @@ private:
         return m_read_buff + m_start_line;
     }
     void unmap();
+    FILE_TYPE ret_file_type(std::string str);
 
 public:
     static int m_epollfd; // 所有的socket被注册到同一个epoll上面
@@ -111,6 +118,7 @@ private:
     int m_iv_count;
     std::string m_body;
     std::unordered_map<std::string, std::string> m_post;
+    FILE_TYPE m_file_type;
 
     CHECK_STATE m_check_state; // 主状态机当前所处的状态
 };
